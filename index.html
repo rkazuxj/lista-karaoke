@@ -107,6 +107,7 @@
                     <p id="editor-description"></p>
                 </div>
                 <button class="button button-primary" id="finish-list" type="button">Salvar lista</button>
+                <button class="button button-primary" id="import-list" type="button" hidden>Adicionar às minhas listas</button>
                 <div class="list-actions" id="list-actions" hidden>
                     <button class="button button-primary" id="toggle-list" type="button">Concluir lista</button>
                     <button class="button button-outline" id="share-list" type="button">Compartilhar lista</button>
@@ -161,12 +162,17 @@
     </dialog>
     <dialog class="share-dialog" id="share-dialog" aria-labelledby="share-title">
         <h2 id="share-title">Compartilhar lista</h2>
-        <label for="share-link">Link da lista</label>
-        <textarea id="share-link" rows="3" readonly></textarea>
-        <p id="share-feedback" role="status" hidden></p>
-        <form method="dialog" class="list-actions">
-            <button class="button button-primary" id="copy-list" type="button" autofocus>Copiar link</button>
-            <button class="button button-outline" type="submit">Fechar</button>
+        <form id="share-form">
+            <label for="share-name">Seu nome no convite</label>
+            <input id="share-name" type="text" maxlength="60" autocomplete="nickname" required>
+            <label for="share-invite" id="share-invite-label" hidden>Convite para copiar</label>
+            <textarea id="share-invite" rows="4" readonly hidden></textarea>
+            <p id="share-feedback" role="status" hidden></p>
+            <div class="list-actions">
+                <button class="button button-primary" id="send-invite" type="submit">Compartilhar convite</button>
+                <button class="button button-outline" id="copy-invite" type="submit">Copiar convite</button>
+                <button class="button button-outline" type="submit" formmethod="dialog" formnovalidate>Fechar</button>
+            </div>
         </form>
     </dialog>
     <div class="status" id="status" role="status" aria-live="polite"></div>

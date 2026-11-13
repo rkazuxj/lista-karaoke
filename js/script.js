@@ -3,7 +3,8 @@
 const keys = {
     lists: "lista-karaoke:lists:v1",
     theme: "lista-karaoke:theme",
-    install: "lista-karaoke:install-tip"
+    install: "lista-karaoke:install-tip",
+    senderName: "lista-karaoke:sender-name"
 };
 const priorities = {
     "1": "TENHO que cantar🤩",
@@ -20,10 +21,14 @@ const artistField = byId("song-artist");
 const priorityField = byId("song-priority");
 const filters = byId("filters");
 const finishButton = byId("finish-list");
+const importButton = byId("import-list");
 const listActions = byId("list-actions");
 const toggleListButton = byId("toggle-list");
 const shareDialog = byId("share-dialog");
-const shareLink = byId("share-link");
+const shareName = byId("share-name");
+const shareInvite = byId("share-invite");
+const sendInviteButton = byId("send-invite");
+const copyInviteButton = byId("copy-invite");
 const shareFeedback = byId("share-feedback");
 const themeButton = byId("theme-button");
 const splash = byId("splash");
@@ -32,7 +37,7 @@ const installHelp = byId("install-help");
 const recordButton = byId("record-play");
 const recordAudio = byId("record-audio");
 const status = byId("status");
-const sharedRoute = "#compartilhada/v1/";
+const sharedRoute = "#compartilhada/";
 const maxSharedPayloadLength = 64000;
 
 let state = readLists();
@@ -117,12 +122,13 @@ function show(view, title, focusHeading) {
 
 function route(focusHeading = true) {
     const hash = location.hash;
-    const sharing = hash.startsWith("#compartilhada/");
+    const sharing = hash.startsWith(sharedRoute);
     const match = hash.match(/^#lista\/([1-9][0-9]*)$/);
     activeId = match ? Number(match[1]) : null;
     sharedList = sharing ? readSharedList(hash) : null;
     priorityFilter = "all";
     resetForm();
+    importButton.hidden = !sharedList;
 
     if (sharing) {
         if (!sharedList) {
@@ -131,15 +137,15 @@ function route(focusHeading = true) {
             return;
         }
         byId("editor-title").textContent = `Lista ${sharedList.id}`;
-        byId("editor-description").textContent = sharedList.finished
-            ? "Lista compartilhada · ✓ Concluída"
-            : "Lista compartilhada";
+        const invitation = sharedList.sender ? invitationText(sharedList.sender) : "Lista compartilhada";
+        byId("editor-description").textContent = sharedList.finished ? `${invitation} · ✓ Concluída` : invitation;
         const back = byId("editor-back");
         back.href = "#";
         back.textContent = "← Voltar ao início";
         finishButton.hidden = true;
         listActions.hidden = true;
         filters.hidden = false;
+        renderImportButton();
         renderSongs();
         show(editor, "editor-title", focusHeading);
         return;
@@ -367,7 +373,7 @@ function saveSong(event) {
     }
     if (!Object.hasOwn(priorities, priorityField.value)) return;
     const song = {
-        id: editingSong ?? (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
+        id: editingSong ?? newSongId(),
         name: nameField.value.trim(),
         artist: artistField.value.trim(),
         priority: priorityField.value
@@ -390,6 +396,10 @@ function saveSong(event) {
     if (activeId === null) nameField.focus();
     else focusSongAction("editSong", song.id);
     announce(editing ? "Música atualizada." : "Música adicionada.");
+}
+
+function newSongId() {
+    return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
 
 function saveDraftList() {
@@ -439,28 +449,62 @@ function deleteSavedList() {
     location.hash = "listas";
 }
 
-function createSharedUrl(list) {
+function findImportedList() {
+    return state.completed.find((list) => list.sharedSource === sharedList.source);
+}
+
+function renderImportButton() {
+    importButton.textContent = findImportedList() ? "Abrir minha cópia" : "Adicionar às minhas listas";
+}
+
+function importSharedList() {
+    if (!sharedList) return;
+    state = readLists();
+    const existing = findImportedList();
+    if (existing) {
+        location.hash = `lista/${existing.id}`;
+        return;
+    }
+    const id = nextListNumber();
+    const list = {
+        id,
+        finished: sharedList.finished,
+        songs: sharedList.songs.map((song) => ({ ...song, id: newSongId() })),
+        sharedSource: sharedList.source
+    };
+    if (!saveLists({ ...state, completed: [...state.completed, list], nextListId: id + 1 })) return;
+    location.hash = `lista/${id}`;
+    announce("Lista adicionada às suas listas.");
+}
+
+function invitationText(sender) {
+    return `${sender} compartilhou esta lista com você. Confira e vamos cantar! 🎤`;
+}
+
+function createSharedUrl(list, sender) {
     const songs = list.songs.map(({ name, artist, priority, sung }) => [name, artist, priority, Boolean(sung)]);
-    const bytes = new TextEncoder().encode(JSON.stringify([list.id, Boolean(list.finished), songs]));
+    const bytes = new TextEncoder().encode(JSON.stringify([list.id, Boolean(list.finished), songs, sender]));
     const payload = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
         .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
     if (payload.length > maxSharedPayloadLength) return null;
     const url = new URL(location.href);
-    url.hash = sharedRoute + payload;
+    url.hash = `${sharedRoute}v2/${payload}`;
     return url.href;
 }
 
 function readSharedList(hash) {
-    if (!hash.startsWith(sharedRoute)) return null;
-    const payload = hash.slice(sharedRoute.length);
-    if (payload.length > maxSharedPayloadLength || !/^[A-Za-z0-9_-]+$/.test(payload)) return null;
+    if (hash.length > sharedRoute.length + 3 + maxSharedPayloadLength) return null;
+    const match = hash.slice(sharedRoute.length).match(/^(v1|v2)\/([A-Za-z0-9_-]+)$/);
+    if (!match) return null;
+    const [, version, payload] = match;
     try {
         const bytes = Uint8Array.from(atob(payload.replaceAll("-", "+").replaceAll("_", "/")),
             (character) => character.charCodeAt(0));
         const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-        if (!Array.isArray(data) || data.length !== 3) return null;
-        const [id, finished, entries] = data;
+        if (!Array.isArray(data) || data.length !== (version === "v2" ? 4 : 3)) return null;
+        const [id, finished, entries, sender = ""] = data;
         if (!Number.isSafeInteger(id) || id < 1 || typeof finished !== "boolean" || !Array.isArray(entries)) return null;
+        if (version === "v2" && (typeof sender !== "string" || !sender.trim() || sender.length > shareName.maxLength)) return null;
         const songs = [];
         for (const entry of entries) {
             if (!Array.isArray(entry) || entry.length !== 4) return null;
@@ -470,16 +514,38 @@ function readSharedList(hash) {
                 || typeof priority !== "string" || !Object.hasOwn(priorities, priority) || typeof sung !== "boolean") return null;
             songs.push({ name, artist, priority, sung });
         }
-        return { id, finished, songs };
+        return { id, finished, songs, sender, source: hash };
     } catch {
         return null;
     }
 }
 
-async function shareSavedList() {
+function openShareDialog() {
     if (activeId === null) return;
     if (!/^https?:$/.test(location.protocol)) {
         announce("Abra o app pelo endereço publicado para compartilhar um link.");
+        return;
+    }
+    shareName.value = readPreference(keys.senderName) ?? "";
+    sendInviteButton.hidden = typeof navigator.share !== "function";
+    shareFeedback.hidden = true;
+    hideInvitePreview();
+    shareDialog.showModal();
+}
+
+function hideInvitePreview() {
+    shareInvite.hidden = true;
+    byId("share-invite-label").hidden = true;
+}
+
+async function shareSavedList(event) {
+    if (event.submitter?.formMethod === "dialog") return;
+    event.preventDefault();
+    if (activeId === null) return;
+    const sender = shareName.value.trim();
+    if (!sender) {
+        shareName.setCustomValidity("Digite o nome que deve aparecer no convite.");
+        shareName.reportValidity();
         return;
     }
     const list = readLists().completed.find((item) => item.id === activeId);
@@ -487,36 +553,41 @@ async function shareSavedList() {
         location.hash = "listas";
         return;
     }
-    const url = createSharedUrl(list);
+    const url = createSharedUrl(list, sender);
     if (!url) {
-        announce("Esta lista é grande demais para compartilhar em um link.");
+        shareFeedback.textContent = "Esta lista é grande demais para compartilhar em um link.";
+        shareFeedback.hidden = false;
         return;
     }
-    if (typeof navigator.share === "function") {
+    writePreference(keys.senderName, sender);
+    const text = invitationText(sender);
+    const invite = `${text}\n${url}`;
+    if (event.submitter !== copyInviteButton && typeof navigator.share === "function") {
         try {
-            await navigator.share({ url });
+            await navigator.share({ text, url });
+            if (shareDialog.open) shareDialog.close();
             return;
         } catch (error) {
             if (error.name === "AbortError") return;
         }
     }
-
-    shareLink.value = url;
-    shareFeedback.hidden = true;
-    shareDialog.showModal();
+    await copySharedInvite(invite);
 }
 
-async function copySharedList() {
+async function copySharedInvite(invite) {
     try {
-        await navigator.clipboard.writeText(shareLink.value);
-        shareDialog.close();
-        announce("Link copiado.");
+        await navigator.clipboard.writeText(invite);
+        if (shareDialog.open) shareDialog.close();
+        announce("Convite com link copiado.");
     } catch {
         if (!shareDialog.open) return;
-        shareFeedback.textContent = "Copie o link selecionado usando o menu do navegador ou Ctrl+C (⌘C no Mac).";
+        shareInvite.value = invite;
+        shareInvite.hidden = false;
+        byId("share-invite-label").hidden = false;
+        shareFeedback.textContent = "Copie o convite selecionado pelo menu do navegador ou com Ctrl+C (⌘C no Mac).";
         shareFeedback.hidden = false;
-        shareLink.focus();
-        shareLink.select();
+        shareInvite.focus();
+        shareInvite.select();
     }
 }
 
@@ -584,10 +655,16 @@ filters.addEventListener("click", (event) => {
     renderSongs();
 });
 finishButton.addEventListener("click", saveDraftList);
+importButton.addEventListener("click", importSharedList);
 toggleListButton.addEventListener("click", toggleSavedList);
 byId("delete-list").addEventListener("click", deleteSavedList);
-byId("share-list").addEventListener("click", shareSavedList);
-byId("copy-list").addEventListener("click", copySharedList);
+byId("share-list").addEventListener("click", openShareDialog);
+byId("share-form").addEventListener("submit", shareSavedList);
+shareName.addEventListener("input", () => {
+    shareName.setCustomValidity("");
+    shareFeedback.hidden = true;
+    hideInvitePreview();
+});
 window.addEventListener("hashchange", () => {
     if (shareDialog.open) shareDialog.close();
     route();
@@ -596,7 +673,10 @@ window.addEventListener("storage", (event) => {
     if (event.key === keys.theme) setTheme(event.newValue);
     if (event.key !== keys.lists) return;
     state = readLists();
-    if (sharedList) return;
+    if (sharedList) {
+        renderImportButton();
+        return;
+    }
     if (!editor.hidden) {
         const list = currentList();
         if (!list) {
