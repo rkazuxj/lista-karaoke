@@ -22,6 +22,12 @@ const priorityField = byId("song-priority");
 const filters = byId("filters");
 const finishButton = byId("finish-list");
 const importButton = byId("import-list");
+const sharedActions = byId("shared-actions");
+const copyAppLink = byId("copy-app-link");
+const importTip = byId("import-tip");
+const transferLink = byId("transfer-link");
+const importDialog = byId("import-dialog");
+const importLink = byId("import-link");
 const listActions = byId("list-actions");
 const toggleListButton = byId("toggle-list");
 const shareDialog = byId("share-dialog");
@@ -128,7 +134,10 @@ function route(focusHeading = true) {
     sharedList = sharing ? readSharedList(hash) : null;
     priorityFilter = "all";
     resetForm();
-    importButton.hidden = !sharedList;
+    sharedActions.hidden = !sharedList;
+    copyAppLink.hidden = !sharedList || !isAppleMobile() || isStandalone();
+    importTip.hidden = true;
+    transferLink.hidden = true;
 
     if (sharing) {
         if (!sharedList) {
@@ -477,6 +486,40 @@ function importSharedList() {
     announce("Lista adicionada às suas listas.");
 }
 
+function openImportDialog() {
+    importLink.value = "";
+    importLink.setCustomValidity("");
+    importDialog.showModal();
+}
+
+function openImportedLink(event) {
+    if (event.submitter?.formMethod === "dialog") return;
+    event.preventDefault();
+    const hash = importLink.value.match(/https?:\/\/[^\s<>"]+(#compartilhada\/[A-Za-z0-9_/-]+)/)?.[1];
+    if (!hash || !readSharedList(hash)) {
+        importLink.setCustomValidity("Cole um link válido de uma lista do Lista Karaokê.");
+        importLink.reportValidity();
+        return;
+    }
+    importDialog.close();
+    location.hash = hash;
+}
+
+async function copyLinkForApp() {
+    const url = location.href;
+    importTip.hidden = false;
+    try {
+        await navigator.clipboard.writeText(url);
+        announce("Link copiado. Agora abra o app pela tela de início.");
+    } catch {
+        if (location.href !== url) return;
+        transferLink.value = url;
+        transferLink.hidden = false;
+        transferLink.focus();
+        transferLink.select();
+    }
+}
+
 function invitationText(sender) {
     return `${sender} compartilhou esta lista com você. Confira e vamos cantar! 🎤`;
 }
@@ -591,12 +634,19 @@ async function copySharedInvite(invite) {
     }
 }
 
-function setupInstallHelp() {
-    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+function isAppleMobile() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isStandalone() {
+    return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+}
+
+function setupInstallHelp() {
+    const ios = isAppleMobile();
     const android = /Android/i.test(navigator.userAgent);
-    const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
-    if ((!ios && !android) || standalone) return;
+    if ((!ios && !android) || isStandalone()) return;
 
     byId("install-copy").textContent = ios
         ? "No Safari, toque em Compartilhar e em Adicionar à Tela de Início. Ative Abrir como App da Web se a opção aparecer e toque em Adicionar."
@@ -656,6 +706,10 @@ filters.addEventListener("click", (event) => {
 });
 finishButton.addEventListener("click", saveDraftList);
 importButton.addEventListener("click", importSharedList);
+copyAppLink.addEventListener("click", copyLinkForApp);
+byId("open-import").addEventListener("click", openImportDialog);
+byId("import-form").addEventListener("submit", openImportedLink);
+importLink.addEventListener("input", () => importLink.setCustomValidity(""));
 toggleListButton.addEventListener("click", toggleSavedList);
 byId("delete-list").addEventListener("click", deleteSavedList);
 byId("share-list").addEventListener("click", openShareDialog);
@@ -667,6 +721,7 @@ shareName.addEventListener("input", () => {
 });
 window.addEventListener("hashchange", () => {
     if (shareDialog.open) shareDialog.close();
+    if (importDialog.open) importDialog.close();
     route();
 });
 window.addEventListener("storage", (event) => {

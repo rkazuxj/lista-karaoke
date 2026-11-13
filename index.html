@@ -79,9 +79,18 @@
             <section class="priorities" aria-labelledby="priority-title">
                 <h2 id="priority-title">Prioridades da lista</h2>
                 <div class="priority-grid">
-                    <article class="priority-card"><span class="priority-number priority-1">1</span><span>TENHO que cantar🤩</span></article>
-                    <article class="priority-card"><span class="priority-number priority-2">2</span><span>Quero MUITO cantar🎤</span></article>
-                    <article class="priority-card"><span class="priority-number priority-3">3</span><span>Se der tempo eu canto👍</span></article>
+                    <details class="priority-item" name="home-priorities">
+                        <summary class="priority-card"><span class="priority-number priority-1">1</span><span>TENHO que cantar🤩</span></summary>
+                        <p class="priority-description">Essas aqui NÃO TEM COMO ficarem de fora, então escolha bem‼️</p>
+                    </details>
+                    <details class="priority-item" name="home-priorities">
+                        <summary class="priority-card"><span class="priority-number priority-2">2</span><span>Quero MUITO cantar🎤</span></summary>
+                        <p class="priority-description">Músicas também indispensáveis, massss que não chegam no top 1🤷‍♂️</p>
+                    </details>
+                    <details class="priority-item" name="home-priorities">
+                        <summary class="priority-card"><span class="priority-number priority-3">3</span><span>Se der tempo eu canto👍</span></summary>
+                        <p class="priority-description">Aqui se sobrar um tempinho a gente canta, não entra no top 1 e nem no 2🥴</p>
+                    </details>
                 </div>
             </section>
         </section>
@@ -93,8 +102,11 @@
                     <h1 id="lists-title" tabindex="-1">Minhas listas</h1>
                     <p>Abra uma lista para ver ou editar as músicas.</p>
                 </div>
-                <button class="button button-primary" id="new-list" type="button"><span class="icon icon-plus"
-                        aria-hidden="true"></span>Criar lista</button>
+                <div class="list-actions">
+                    <button class="button button-primary" id="new-list" type="button"><span class="icon icon-plus"
+                            aria-hidden="true"></span>Criar lista</button>
+                    <button class="button button-outline" id="open-import" type="button" aria-haspopup="dialog">Importar pelo link</button>
+                </div>
             </div>
             <div id="saved-lists" class="saved-lists"></div>
         </section>
@@ -107,12 +119,19 @@
                     <p id="editor-description"></p>
                 </div>
                 <button class="button button-primary" id="finish-list" type="button">Salvar lista</button>
-                <button class="button button-primary" id="import-list" type="button" hidden>Adicionar às minhas listas</button>
+                <div class="list-actions" id="shared-actions" hidden>
+                    <button class="button button-primary" id="import-list" type="button">Adicionar às minhas listas</button>
+                    <button class="button button-outline" id="copy-app-link" type="button" hidden>Levar para o app</button>
+                </div>
                 <div class="list-actions" id="list-actions" hidden>
                     <button class="button button-primary" id="toggle-list" type="button">Concluir lista</button>
                     <button class="button button-outline" id="share-list" type="button">Compartilhar lista</button>
                     <button class="button button-outline button-delete" id="delete-list" type="button">Excluir lista</button>
                 </div>
+            </div>
+            <div class="panel import-tip" id="import-tip" hidden>
+                <p>Para guardar a lista no app do iPhone, copie o link, abra o Lista Karaokê pelo ícone da tela de início e vá em <strong>Minhas listas → Importar pelo link</strong>.</p>
+                <textarea id="transfer-link" rows="2" aria-label="Link para copiar" readonly hidden></textarea>
             </div>
             <div class="editor-grid">
                 <form class="panel song-form" id="song-form">
@@ -150,7 +169,9 @@
     </main>
 
     <footer class="container site-footer">
-        <span class="footer-note"><span class="icon icon-device" aria-hidden="true"></span>Suas listas ficam salvas neste navegador.</span>
+        <div class="footer-copy">
+            <p>P.S: Já tentou clicar no disco?</p>
+        </div>
         <button class="install-help" id="install-help" type="button" aria-haspopup="dialog" hidden>Como adicionar à tela de início</button>
     </footer>
 
@@ -159,6 +180,17 @@
         <h2 id="install-title">Adicione à Tela de Início</h2>
         <p id="install-copy"></p>
         <form method="dialog"><button class="button button-primary" type="submit">Entendi</button></form>
+    </dialog>
+    <dialog class="share-dialog" id="import-dialog" aria-labelledby="import-title">
+        <h2 id="import-title">Importar pelo link</h2>
+        <form id="import-form">
+            <label for="import-link">Cole o link ou o convite completo</label>
+            <textarea id="import-link" rows="4" required></textarea>
+            <div class="list-actions">
+                <button class="button button-primary" type="submit">Abrir lista</button>
+                <button class="button button-outline" type="submit" formmethod="dialog" formnovalidate>Fechar</button>
+            </div>
+        </form>
     </dialog>
     <dialog class="share-dialog" id="share-dialog" aria-labelledby="share-title">
         <h2 id="share-title">Compartilhar lista</h2>

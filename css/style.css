@@ -432,6 +432,36 @@ main {
     background: var(--surface);
     font-size: .92rem;
     font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+}
+
+.priority-card::-webkit-details-marker { display: none; }
+.priority-card::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-inline-start: auto;
+    margin-inline-end: 3px;
+    flex: 0 0 auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+}
+
+.priority-item[open] .priority-card,
+.priority-card:hover { border-color: var(--ink); }
+.priority-item[open] .priority-card::after { transform: rotate(225deg); }
+
+.priority-description {
+    margin-top: 8px;
+    padding: 12px 14px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    font-size: .92rem;
+    line-height: 1.5;
 }
 
 .priority-number {
@@ -471,10 +501,14 @@ main {
     padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
 
-.footer-note {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+.footer-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.footer-quote {
+    color: var(--ink);
+    font-weight: 750;
 }
 
 .install-help {
@@ -529,6 +563,12 @@ main {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.import-tip {
+    margin-bottom: 16px;
+    color: var(--muted);
+    line-height: 1.5;
 }
 
 .editor-grid {
@@ -784,23 +824,6 @@ main {
     box-shadow: none;
 }
 
-.icon-device {
-    width: 10px;
-    height: 14px;
-    border: 1.5px solid currentColor;
-    border-radius: 2px;
-}
-
-.icon-device::after {
-    content: "";
-    position: absolute;
-    width: 3px;
-    height: 1px;
-    bottom: 1px;
-    left: 2px;
-    background: currentColor;
-}
-
 .splash {
     display: none;
     position: fixed;
@@ -906,7 +929,8 @@ main {
 }
 
 .share-dialog textarea,
-.share-dialog input {
+.share-dialog input,
+#transfer-link {
     display: block;
     width: 100%;
     margin-block: 6px 14px;
