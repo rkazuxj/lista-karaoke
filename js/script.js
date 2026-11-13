@@ -6,9 +6,9 @@ const keys = {
     install: "lista-karaoke:install-tip"
 };
 const priorities = {
-    "1": "Obrigatório cantar",
-    "2": "Quero muito cantar",
-    "3": "Se der tempo eu canto"
+    "1": "TENHO que cantar🤩",
+    "2": "Quero MUITO cantar🎤",
+    "3": "Se der tempo eu canto👍"
 };
 const byId = (id) => document.getElementById(id);
 const home = byId("home");
@@ -20,9 +20,14 @@ const artistField = byId("song-artist");
 const priorityField = byId("song-priority");
 const filters = byId("filters");
 const finishButton = byId("finish-list");
+const listActions = byId("list-actions");
+const toggleListButton = byId("toggle-list");
 const themeButton = byId("theme-button");
 const splash = byId("splash");
 const installDialog = byId("install-dialog");
+const installHelp = byId("install-help");
+const recordButton = byId("record-play");
+const recordAudio = byId("record-audio");
 const status = byId("status");
 
 let state = readLists();
@@ -82,12 +87,17 @@ function setTheme(theme) {
 }
 
 function nextListNumber() {
-    return state.completed.reduce((highest, list) => Math.max(highest, list.id), 0) + 1;
+    return state.completed.reduce((next, list) => Math.max(next, list.id + 1), state.nextListId ?? 1);
 }
 
 function currentList() {
     if (activeId === null) return state.draft;
     return state.completed.find((list) => list.id === activeId);
+}
+
+function renderListStatus(list) {
+    byId("editor-description").textContent = list.finished ? "✓ Lista concluída" : "Marque as músicas que você já cantou.";
+    toggleListButton.textContent = list.finished ? "Reabrir lista" : "Concluir lista";
 }
 
 function show(view, title, focusHeading) {
@@ -108,13 +118,13 @@ function route(focusHeading = true) {
     if (hash === "#criar" || (match && currentList())) {
         const draft = activeId === null;
         byId("editor-title").textContent = `Lista ${draft ? nextListNumber() : activeId}`;
-        byId("editor-description").textContent = draft
-            ? "Adicione músicas ao seu repertório."
-            : "Adicione ou edite músicas e filtre por prioridade.";
+        if (draft) byId("editor-description").textContent = "Adicione músicas ao seu repertório.";
+        else renderListStatus(currentList());
         const back = byId("editor-back");
         back.href = draft ? "#" : "#listas";
         back.textContent = draft ? "← Voltar ao início" : "← Minhas listas";
         finishButton.hidden = !draft;
+        listActions.hidden = draft;
         filters.hidden = draft;
         renderSongs();
         show(editor, "editor-title", focusHeading);
@@ -141,7 +151,7 @@ function renderLists() {
     const target = byId("saved-lists");
     target.replaceChildren();
     if (state.completed.length === 0) {
-        target.append(emptyMessage("Suas listas concluídas vão aparecer aqui."));
+        target.append(emptyMessage("Suas listas salvas vão aparecer aqui."));
         return;
     }
 
@@ -155,6 +165,12 @@ function renderLists() {
         const count = document.createElement("p");
         count.textContent = songCount(list.songs.length);
         description.append(title, count);
+        if (list.finished) {
+            const done = document.createElement("p");
+            done.className = "list-done";
+            done.textContent = "✓ Concluída";
+            description.append(done);
+        }
         const arrow = document.createElement("span");
         arrow.textContent = "→";
         arrow.setAttribute("aria-hidden", "true");
@@ -165,11 +181,12 @@ function renderLists() {
 
 function renderSongs() {
     const list = currentList();
+    const draft = activeId === null;
     const target = byId("songs");
     target.replaceChildren();
-    const shown = priorityFilter === "all"
-        ? list.songs
-        : list.songs.filter((song) => song.priority === priorityFilter);
+    const shown = list.songs
+        .filter((song) => priorityFilter === "all" || song.priority === priorityFilter)
+        .sort((first, second) => Number(first.priority) - Number(second.priority));
 
     byId("song-count").textContent = priorityFilter === "all"
         ? songCount(list.songs.length)
@@ -180,9 +197,8 @@ function renderSongs() {
     }
 
     if (shown.length === 0) {
-        target.append(emptyMessage(priorityFilter === "all"
-            ? "As músicas adicionadas aparecem aqui."
-            : "Nenhuma música com essa prioridade."));
+        const message = draft ? "As músicas adicionadas aparecem aqui." : "Esta lista está sem músicas.";
+        target.append(emptyMessage(priorityFilter === "all" ? message : "Nenhuma música nessa categoria."));
         return;
     }
 
@@ -190,7 +206,7 @@ function renderSongs() {
     items.className = "song-list";
     for (const song of shown) {
         const item = document.createElement("li");
-        item.className = "song-row";
+        item.className = song.sung ? "song-row song-sung" : "song-row";
         const number = document.createElement("span");
         number.className = `priority-number priority-${song.priority}`;
         number.textContent = song.priority;
@@ -205,20 +221,48 @@ function renderSongs() {
         artist.textContent = song.artist;
         details.append(title, artist);
 
-        const edit = document.createElement("button");
-        edit.type = "button";
-        edit.className = "button button-outline";
-        edit.textContent = "Editar";
-        edit.setAttribute("aria-label", `Editar ${song.name}`);
-        edit.addEventListener("click", () => openSong(song));
-        item.append(number, details, edit);
+        const actions = document.createElement("div");
+        actions.className = "song-actions";
+        const edit = songAction("Editar", `Editar ${song.name}`, () => openSong(song));
+        edit.dataset.editSong = song.id;
+        actions.append(edit);
+        if (!draft) {
+            const toggle = songAction(song.sung ? "✓ Cantada" : "Marcar como cantada",
+                `Marcar como cantada: ${song.name}`, () => updateSavedSong(song.id, "toggle"));
+            toggle.dataset.toggleSong = song.id;
+            toggle.setAttribute("aria-pressed", String(Boolean(song.sung)));
+            const remove = songAction("Excluir", `Excluir ${song.name}`, () => {
+                if (window.confirm(`Excluir “${song.name}” desta lista?`)) updateSavedSong(song.id, "remove");
+            });
+            remove.classList.add("button-delete");
+            actions.prepend(toggle);
+            actions.append(remove);
+        }
+        item.append(number, details, actions);
         items.append(item);
     }
     target.append(items);
 }
 
+function songAction(text, label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button-outline";
+    button.textContent = text;
+    button.setAttribute("aria-label", label);
+    button.addEventListener("click", onClick);
+    return button;
+}
+
+function focusSongAction(action, id) {
+    const button = [...byId("songs").querySelectorAll("button")]
+        .find((candidate) => candidate.dataset[action] === id);
+    (button ?? byId("song-panel-title")).focus();
+}
+
 function openSong(song) {
     editingSong = song.id;
+    form.hidden = false;
     nameField.value = song.name;
     artistField.value = song.artist;
     priorityField.value = song.priority;
@@ -232,13 +276,45 @@ function resetForm() {
     form.reset();
     for (const field of [nameField, artistField]) field.setCustomValidity("");
     editingSong = null;
+    form.hidden = activeId !== null;
     byId("form-title").textContent = "Adicionar música";
     byId("submit-song").textContent = "Adicionar música";
     byId("cancel-edit").hidden = true;
 }
 
+function saveSongs(songs) {
+    const next = activeId === null
+        ? { ...state, draft: { ...state.draft, songs } }
+        : { ...state, completed: state.completed.map((list) => list.id === activeId ? { ...list, songs } : list) };
+    return saveLists(next);
+}
+
+function updateSavedSong(id, action) {
+    if (activeId === null) return;
+    state = readLists();
+    const list = currentList();
+    const song = list?.songs.find((item) => item.id === id);
+    if (!song) {
+        route();
+        announce("A música já saiu desta lista.");
+        return;
+    }
+
+    const remove = action === "remove";
+    const songs = remove
+        ? list.songs.filter((item) => item.id !== id)
+        : list.songs.map((item) => item.id === id ? { ...item, sung: !song.sung } : item);
+    if (!saveSongs(songs)) return;
+    if (remove && editingSong === id) resetForm();
+    renderSongs();
+    focusSongAction("toggleSong", id);
+    announce(remove ? "Música excluída." : song.sung ? "Música marcada como pendente." : "Música marcada como cantada.");
+}
+
 function saveSong(event) {
     event.preventDefault();
+    const editing = editingSong !== null;
+    if (activeId !== null && !editing) return;
     for (const field of [nameField, artistField]) {
         if (!field.value.trim()) {
             field.setCustomValidity("Preencha este campo.");
@@ -246,7 +322,7 @@ function saveSong(event) {
             return;
         }
     }
-    const editing = editingSong !== null;
+    if (!Object.hasOwn(priorities, priorityField.value)) return;
     const song = {
         id: editingSong ?? (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
         name: nameField.value.trim(),
@@ -261,23 +337,22 @@ function saveSong(event) {
         return;
     }
     const songs = editing
-        ? list.songs.map((existing) => existing.id === editingSong ? song : existing)
+        ? list.songs.map((existing) => existing.id === editingSong ? { ...existing, ...song } : existing)
         : [...list.songs, song];
-    const next = activeId === null
-        ? { ...state, draft: { songs } }
-        : { ...state, completed: state.completed.map((saved) => saved.id === activeId ? { ...saved, songs } : saved) };
 
-    if (!saveLists(next)) return;
+    if (!saveSongs(songs)) return;
     if (priorityFilter !== "all" && priorityFilter !== song.priority) priorityFilter = "all";
     resetForm();
     renderSongs();
-    if (!editing) nameField.focus();
+    if (activeId === null) nameField.focus();
+    else focusSongAction("editSong", song.id);
     announce(editing ? "Música atualizada." : "Música adicionada.");
 }
 
-function finishList() {
+function saveDraftList() {
+    if (activeId !== null) return;
     if (editingSong !== null || nameField.value.trim() || artistField.value.trim() || priorityField.value) {
-        announce("Salve a música do formulário antes de concluir a lista.");
+        announce("Salve a música do formulário antes de salvar a lista.");
         byId("submit-song").focus();
         return;
     }
@@ -287,23 +362,77 @@ function finishList() {
         return;
     }
     const list = { id: nextListNumber(), songs: state.draft.songs };
-    if (!saveLists({ completed: [...state.completed, list], draft: { songs: [] } })) return;
+    if (!saveLists({ ...state, completed: [...state.completed, list], draft: { songs: [] }, nextListId: list.id + 1 })) return;
     location.hash = "listas";
-    announce(`Lista ${list.id} concluída.`);
+    announce(`Lista ${list.id} salva.`);
 }
 
-function showInstallTip() {
+function toggleSavedList() {
+    if (activeId === null) return;
+    state = readLists();
+    const list = currentList();
+    if (!list) {
+        location.hash = "listas";
+        return;
+    }
+
+    const updated = { ...list, finished: !list.finished };
+    const completed = state.completed.map((item) => item.id === list.id ? updated : item);
+    if (!saveLists({ ...state, completed })) return;
+    renderListStatus(updated);
+    announce(`Lista ${list.id} ${updated.finished ? "concluída" : "reaberta"}.`);
+}
+
+function deleteSavedList() {
+    const id = activeId;
+    if (id === null || !window.confirm(`Excluir a Lista ${id} e todas as suas músicas?`)) return;
+
+    state = readLists();
+    const completed = state.completed.filter((list) => list.id !== id);
+    if (completed.length !== state.completed.length) {
+        if (!saveLists({ ...state, completed, nextListId: nextListNumber() })) return;
+        announce(`Lista ${id} excluída.`);
+    }
+    location.hash = "listas";
+}
+
+function setupInstallHelp() {
     const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const android = /Android/i.test(navigator.userAgent);
     const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
-    if ((!ios && !android) || standalone || readPreference(keys.install)) return;
+    if ((!ios && !android) || standalone) return;
 
     byId("install-copy").textContent = ios
         ? "No Safari, toque em Compartilhar e em Adicionar à Tela de Início. Ative Abrir como App da Web se a opção aparecer e toque em Adicionar."
         : "No menu do navegador, toque em Adicionar à tela inicial ou Instalar app e confirme.";
-    installDialog.showModal();
-    writePreference(keys.install, "seen");
+    installHelp.hidden = false;
+    installHelp.addEventListener("click", () => installDialog.showModal());
+    if (!readPreference(keys.install)) {
+        installDialog.showModal();
+        writePreference(keys.install, "seen");
+    }
+}
+
+function updateRecordButton() {
+    const playing = !recordAudio.paused && !recordAudio.ended;
+    recordButton.setAttribute("aria-pressed", String(playing));
+    recordButton.title = playing ? "Pausar música" : "Tocar música";
+}
+
+recordButton.addEventListener("click", async () => {
+    if (!recordAudio.paused) {
+        recordAudio.pause();
+        return;
+    }
+    try {
+        await recordAudio.play();
+    } catch (error) {
+        if (error.name !== "AbortError") announce("Áudio indisponível. Adicione o arquivo audio/karaoke.mp3.");
+    }
+});
+for (const event of ["play", "pause", "ended", "error"]) {
+    recordAudio.addEventListener(event, updateRecordButton);
 }
 
 themeButton.addEventListener("click", () => {
@@ -319,8 +448,10 @@ for (const field of [nameField, artistField]) {
     field.addEventListener("input", () => field.setCustomValidity(""));
 }
 byId("cancel-edit").addEventListener("click", () => {
+    const id = editingSong;
     resetForm();
-    nameField.focus();
+    if (activeId === null) nameField.focus();
+    else focusSongAction("editSong", id);
 });
 filters.addEventListener("click", (event) => {
     const button = event.target.closest("button");
@@ -328,14 +459,22 @@ filters.addEventListener("click", (event) => {
     priorityFilter = button.dataset.priority;
     renderSongs();
 });
-finishButton.addEventListener("click", finishList);
+finishButton.addEventListener("click", saveDraftList);
+toggleListButton.addEventListener("click", toggleSavedList);
+byId("delete-list").addEventListener("click", deleteSavedList);
 window.addEventListener("hashchange", () => route());
 window.addEventListener("storage", (event) => {
     if (event.key === keys.theme) setTheme(event.newValue);
     if (event.key !== keys.lists) return;
     state = readLists();
-    if (!editor.hidden && currentList()) {
+    if (!editor.hidden) {
+        const list = currentList();
+        if (!list) {
+            location.hash = "listas";
+            return;
+        }
         if (activeId === null) byId("editor-title").textContent = `Lista ${nextListNumber()}`;
+        else renderListStatus(list);
         renderSongs();
     }
     if (!lists.hidden) renderLists();
@@ -351,7 +490,7 @@ setTimeout(() => {
     document.documentElement.classList.remove("is-loading");
     setTimeout(() => {
         splash.remove();
-        showInstallTip();
+        setupInstallHelp();
     }, minimum === 0 ? 0 : 200);
 }, Math.max(0, minimum - elapsed));
 

@@ -1,6 +1,6 @@
 "use strict";
 
-const cacheName = "lista-karaoke-v1";
+const cacheName = "lista-karaoke-v3";
 const home = new URL("./index.html", self.registration.scope).href;
 const assets = [
     "./index.html", "./css/style.css", "./js/script.js", "./manifest.webmanifest",

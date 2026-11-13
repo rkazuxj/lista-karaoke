@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=DM+Sans:wght@400..900&display=swap"
         rel="stylesheet">
 </head>
 
@@ -59,27 +59,29 @@
                                 aria-hidden="true"></span>Minhas listas</a>
                     </div>
                 </div>
-                <div class="hero-art" aria-hidden="true">
-                    <span class="art-star star-top">✦</span>
-                    <span class="art-star star-bottom">✦</span>
-                    <span class="art-note">♪</span>
-                    <span class="art-dot"></span>
-                    <div class="record-sleeve"><span></span></div>
+                <div class="hero-art">
+                    <span class="art-star star-top" aria-hidden="true">✦</span>
+                    <span class="art-star star-bottom" aria-hidden="true">✦</span>
+                    <span class="art-note" aria-hidden="true">♪</span>
+                    <span class="art-dot" aria-hidden="true"></span>
+                    <div class="record-sleeve" aria-hidden="true"><span></span></div>
                     <div class="record">
-                        <div class="record-label"><img src="img/microfone.png" alt="" width="54" height="54"></div>
+                        <button class="record-label" id="record-play" type="button" aria-label="Música do disco"
+                            aria-pressed="false" title="Tocar música">
+                            <img src="img/microfone.png" alt="" width="54" height="54">
+                            <span class="record-control" aria-hidden="true"></span>
+                        </button>
                     </div>
+                    <audio id="record-audio" src="audio/pastday-november.mp3" preload="none" volume="20%"></audio>
                 </div>
             </div>
 
             <section class="priorities" aria-labelledby="priority-title">
                 <h2 id="priority-title">Prioridades da lista</h2>
                 <div class="priority-grid">
-                    <article class="priority-card"><span class="priority-number priority-1">1</span><span>Obrigatório
-                            cantar</span></article>
-                    <article class="priority-card"><span class="priority-number priority-2">2</span><span>Quero muito
-                            cantar</span></article>
-                    <article class="priority-card"><span class="priority-number priority-3">3</span><span>Se der tempo
-                            eu canto</span></article>
+                    <article class="priority-card"><span class="priority-number priority-1">1</span><span>TENHO que cantar🤩</span></article>
+                    <article class="priority-card"><span class="priority-number priority-2">2</span><span>Quero MUITO cantar🎤</span></article>
+                    <article class="priority-card"><span class="priority-number priority-3">3</span><span>Se der tempo eu canto👍</span></article>
                 </div>
             </section>
         </section>
@@ -104,8 +106,11 @@
                     <h1 id="editor-title" tabindex="-1"></h1>
                     <p id="editor-description"></p>
                 </div>
-                <button class="button button-primary" id="finish-list" type="button">Concluir lista <span
-                        aria-hidden="true">✓</span></button>
+                <button class="button button-primary" id="finish-list" type="button">Salvar lista</button>
+                <div class="list-actions" id="list-actions" hidden>
+                    <button class="button button-primary" id="toggle-list" type="button">Concluir lista</button>
+                    <button class="button button-outline button-delete" id="delete-list" type="button">Excluir lista</button>
+                </div>
             </div>
             <div class="editor-grid">
                 <form class="panel song-form" id="song-form">
@@ -118,9 +123,9 @@
                     <label for="song-priority">Prioridade</label>
                     <select id="song-priority" name="priority" required>
                         <option value="" selected disabled>Escolher prioridade</option>
-                        <option value="1">1 · Obrigatório cantar</option>
-                        <option value="2">2 · Quero muito cantar</option>
-                        <option value="3">3 · Se der tempo eu canto</option>
+                        <option value="1">1 · TENHO que cantar🤩</option>
+                        <option value="2">2 · Quero MUITO cantar🎤</option>
+                        <option value="3">3 · Se der tempo eu canto👍</option>
                     </select>
                     <button class="button button-primary" id="submit-song" type="submit">Adicionar música</button>
                     <button class="button button-outline" id="cancel-edit" type="button" hidden>Cancelar edição</button>
@@ -128,16 +133,13 @@
 
                 <div class="panel song-panel">
                     <div class="song-panel-heading">
-                        <h2>Músicas</h2><span id="song-count"></span>
+                        <h2 id="song-panel-title" tabindex="-1">Músicas</h2><span id="song-count"></span>
                     </div>
-                    <div class="filters" id="filters" role="group" aria-label="Filtrar por prioridade" hidden>
+                    <div class="filters" id="filters" role="group" aria-label="Filtrar por categoria" hidden>
                         <button type="button" data-priority="all" aria-pressed="true">Todas</button>
-                        <button type="button" data-priority="1" aria-label="Prioridade 1"
-                            aria-pressed="false">Prioridade 1</button>
-                        <button type="button" data-priority="2" aria-label="Prioridade 2"
-                            aria-pressed="false">Prioridade 2</button>
-                        <button type="button" data-priority="3" aria-label="Prioridade 3"
-                            aria-pressed="false">Prioridade 3</button>
+                        <button type="button" data-priority="1" aria-pressed="false">TENHO que cantar🤩</button>
+                        <button type="button" data-priority="2" aria-pressed="false">Quero MUITO cantar🎤</button>
+                        <button type="button" data-priority="3" aria-pressed="false">Se der tempo eu canto👍</button>
                     </div>
                     <div id="songs"></div>
                 </div>
@@ -145,8 +147,10 @@
         </section>
     </main>
 
-    <footer class="container site-footer"><span class="icon icon-device" aria-hidden="true"></span>Suas listas ficam
-        salvas neste navegador.</footer>
+    <footer class="container site-footer">
+        <span class="footer-note"><span class="icon icon-device" aria-hidden="true"></span>Suas listas ficam salvas neste navegador.</span>
+        <button class="install-help" id="install-help" type="button" aria-haspopup="dialog" hidden>Como adicionar à tela de início</button>
+    </footer>
 
     <dialog class="install-dialog" id="install-dialog" aria-labelledby="install-title" aria-describedby="install-copy">
         <img src="img/logo.png" alt="" width="54" height="54">
