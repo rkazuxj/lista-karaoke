@@ -22,6 +22,9 @@ const filters = byId("filters");
 const finishButton = byId("finish-list");
 const listActions = byId("list-actions");
 const toggleListButton = byId("toggle-list");
+const shareDialog = byId("share-dialog");
+const shareLink = byId("share-link");
+const shareFeedback = byId("share-feedback");
 const themeButton = byId("theme-button");
 const splash = byId("splash");
 const installDialog = byId("install-dialog");
@@ -29,9 +32,12 @@ const installHelp = byId("install-help");
 const recordButton = byId("record-play");
 const recordAudio = byId("record-audio");
 const status = byId("status");
+const sharedRoute = "#compartilhada/v1/";
+const maxSharedPayloadLength = 64000;
 
 let state = readLists();
 let activeId = null;
+let sharedList = null;
 let editingSong = null;
 let priorityFilter = "all";
 let statusTimeout;
@@ -91,6 +97,7 @@ function nextListNumber() {
 }
 
 function currentList() {
+    if (sharedList) return sharedList;
     if (activeId === null) return state.draft;
     return state.completed.find((list) => list.id === activeId);
 }
@@ -110,10 +117,33 @@ function show(view, title, focusHeading) {
 
 function route(focusHeading = true) {
     const hash = location.hash;
+    const sharing = hash.startsWith("#compartilhada/");
     const match = hash.match(/^#lista\/([1-9][0-9]*)$/);
     activeId = match ? Number(match[1]) : null;
+    sharedList = sharing ? readSharedList(hash) : null;
     priorityFilter = "all";
     resetForm();
+
+    if (sharing) {
+        if (!sharedList) {
+            show(home, "home-title", focusHeading);
+            announce("Este link de karaokê está inválido ou incompleto.");
+            return;
+        }
+        byId("editor-title").textContent = `Lista ${sharedList.id}`;
+        byId("editor-description").textContent = sharedList.finished
+            ? "Lista compartilhada · ✓ Concluída"
+            : "Lista compartilhada";
+        const back = byId("editor-back");
+        back.href = "#";
+        back.textContent = "← Voltar ao início";
+        finishButton.hidden = true;
+        listActions.hidden = true;
+        filters.hidden = false;
+        renderSongs();
+        show(editor, "editor-title", focusHeading);
+        return;
+    }
 
     if (hash === "#criar" || (match && currentList())) {
         const draft = activeId === null;
@@ -181,7 +211,7 @@ function renderLists() {
 
 function renderSongs() {
     const list = currentList();
-    const draft = activeId === null;
+    const draft = activeId === null && !sharedList;
     const target = byId("songs");
     target.replaceChildren();
     const shown = list.songs
@@ -220,6 +250,18 @@ function renderSongs() {
         const artist = document.createElement("span");
         artist.textContent = song.artist;
         details.append(title, artist);
+        item.append(number, details);
+        if (sharedList) {
+            item.classList.add("song-readonly");
+            if (song.sung) {
+                const sung = document.createElement("span");
+                sung.className = "song-sung-label";
+                sung.textContent = "✓ Cantada";
+                item.append(sung);
+            }
+            items.append(item);
+            continue;
+        }
 
         const actions = document.createElement("div");
         actions.className = "song-actions";
@@ -238,7 +280,7 @@ function renderSongs() {
             actions.prepend(toggle);
             actions.append(remove);
         }
-        item.append(number, details, actions);
+        item.append(actions);
         items.append(item);
     }
     target.append(items);
@@ -276,7 +318,7 @@ function resetForm() {
     form.reset();
     for (const field of [nameField, artistField]) field.setCustomValidity("");
     editingSong = null;
-    form.hidden = activeId !== null;
+    form.hidden = activeId !== null || sharedList !== null;
     byId("form-title").textContent = "Adicionar música";
     byId("submit-song").textContent = "Adicionar música";
     byId("cancel-edit").hidden = true;
@@ -313,6 +355,7 @@ function updateSavedSong(id, action) {
 
 function saveSong(event) {
     event.preventDefault();
+    if (sharedList) return;
     const editing = editingSong !== null;
     if (activeId !== null && !editing) return;
     for (const field of [nameField, artistField]) {
@@ -350,7 +393,7 @@ function saveSong(event) {
 }
 
 function saveDraftList() {
-    if (activeId !== null) return;
+    if (activeId !== null || sharedList) return;
     if (editingSong !== null || nameField.value.trim() || artistField.value.trim() || priorityField.value) {
         announce("Salve a música do formulário antes de salvar a lista.");
         byId("submit-song").focus();
@@ -396,6 +439,87 @@ function deleteSavedList() {
     location.hash = "listas";
 }
 
+function createSharedUrl(list) {
+    const songs = list.songs.map(({ name, artist, priority, sung }) => [name, artist, priority, Boolean(sung)]);
+    const bytes = new TextEncoder().encode(JSON.stringify([list.id, Boolean(list.finished), songs]));
+    const payload = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
+        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+    if (payload.length > maxSharedPayloadLength) return null;
+    const url = new URL(location.href);
+    url.hash = sharedRoute + payload;
+    return url.href;
+}
+
+function readSharedList(hash) {
+    if (!hash.startsWith(sharedRoute)) return null;
+    const payload = hash.slice(sharedRoute.length);
+    if (payload.length > maxSharedPayloadLength || !/^[A-Za-z0-9_-]+$/.test(payload)) return null;
+    try {
+        const bytes = Uint8Array.from(atob(payload.replaceAll("-", "+").replaceAll("_", "/")),
+            (character) => character.charCodeAt(0));
+        const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        if (!Array.isArray(data) || data.length !== 3) return null;
+        const [id, finished, entries] = data;
+        if (!Number.isSafeInteger(id) || id < 1 || typeof finished !== "boolean" || !Array.isArray(entries)) return null;
+        const songs = [];
+        for (const entry of entries) {
+            if (!Array.isArray(entry) || entry.length !== 4) return null;
+            const [name, artist, priority, sung] = entry;
+            if (typeof name !== "string" || !name.trim() || name.length > nameField.maxLength
+                || typeof artist !== "string" || !artist.trim() || artist.length > artistField.maxLength
+                || typeof priority !== "string" || !Object.hasOwn(priorities, priority) || typeof sung !== "boolean") return null;
+            songs.push({ name, artist, priority, sung });
+        }
+        return { id, finished, songs };
+    } catch {
+        return null;
+    }
+}
+
+async function shareSavedList() {
+    if (activeId === null) return;
+    if (!/^https?:$/.test(location.protocol)) {
+        announce("Abra o app pelo endereço publicado para compartilhar um link.");
+        return;
+    }
+    const list = readLists().completed.find((item) => item.id === activeId);
+    if (!list) {
+        location.hash = "listas";
+        return;
+    }
+    const url = createSharedUrl(list);
+    if (!url) {
+        announce("Esta lista é grande demais para compartilhar em um link.");
+        return;
+    }
+    if (typeof navigator.share === "function") {
+        try {
+            await navigator.share({ url });
+            return;
+        } catch (error) {
+            if (error.name === "AbortError") return;
+        }
+    }
+
+    shareLink.value = url;
+    shareFeedback.hidden = true;
+    shareDialog.showModal();
+}
+
+async function copySharedList() {
+    try {
+        await navigator.clipboard.writeText(shareLink.value);
+        shareDialog.close();
+        announce("Link copiado.");
+    } catch {
+        if (!shareDialog.open) return;
+        shareFeedback.textContent = "Copie o link selecionado usando o menu do navegador ou Ctrl+C (⌘C no Mac).";
+        shareFeedback.hidden = false;
+        shareLink.focus();
+        shareLink.select();
+    }
+}
+
 function setupInstallHelp() {
     const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -408,7 +532,7 @@ function setupInstallHelp() {
         : "No menu do navegador, toque em Adicionar à tela inicial ou Instalar app e confirme.";
     installHelp.hidden = false;
     installHelp.addEventListener("click", () => installDialog.showModal());
-    if (!readPreference(keys.install)) {
+    if (!sharedList && !readPreference(keys.install)) {
         installDialog.showModal();
         writePreference(keys.install, "seen");
     }
@@ -462,11 +586,17 @@ filters.addEventListener("click", (event) => {
 finishButton.addEventListener("click", saveDraftList);
 toggleListButton.addEventListener("click", toggleSavedList);
 byId("delete-list").addEventListener("click", deleteSavedList);
-window.addEventListener("hashchange", () => route());
+byId("share-list").addEventListener("click", shareSavedList);
+byId("copy-list").addEventListener("click", copySharedList);
+window.addEventListener("hashchange", () => {
+    if (shareDialog.open) shareDialog.close();
+    route();
+});
 window.addEventListener("storage", (event) => {
     if (event.key === keys.theme) setTheme(event.newValue);
     if (event.key !== keys.lists) return;
     state = readLists();
+    if (sharedList) return;
     if (!editor.hidden) {
         const list = currentList();
         if (!list) {

@@ -651,6 +651,15 @@ main {
 
 .song-sung .song-details strong { text-decoration: line-through; }
 
+.song-row.song-readonly { grid-template-columns: auto minmax(0, 1fr); }
+
+.song-sung-label {
+    grid-column: 2;
+    color: var(--muted);
+    font-size: .85rem;
+    font-weight: 750;
+}
+
 .song-actions {
     display: flex;
     flex-wrap: wrap;
@@ -851,7 +860,8 @@ main {
     }
 }
 
-.install-dialog {
+.install-dialog,
+.share-dialog {
     width: min(400px, calc(100% - 32px));
     padding: 23px;
     color: var(--ink);
@@ -861,11 +871,13 @@ main {
     box-shadow: 0 15px 45px #0004;
 }
 
-.install-dialog::backdrop {
+.install-dialog::backdrop,
+.share-dialog::backdrop {
     background: #111832A6;
 }
 
-.install-dialog h2 {
+.install-dialog h2,
+.share-dialog h2 {
     margin-top: 10px;
     font-size: 1.45rem;
     letter-spacing: -.045em;
@@ -879,6 +891,36 @@ main {
 
 .install-dialog .button {
     width: 100%;
+}
+
+.share-dialog {
+    width: min(480px, calc(100% - 32px));
+}
+
+.share-dialog label {
+    display: block;
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: .9rem;
+}
+
+.share-dialog textarea {
+    display: block;
+    width: 100%;
+    margin-block: 6px 14px;
+    padding: 10px;
+    color: var(--ink);
+    background: var(--background);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    resize: vertical;
+}
+
+.share-dialog p {
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: .9rem;
 }
 
 .status:not(:empty) {
